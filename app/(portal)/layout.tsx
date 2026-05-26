@@ -1,13 +1,12 @@
 import Link from "next/link";
 import { PortalSidebar } from "./_components/portal-sidebar";
-import { getServerSession } from "next-auth/next";
-import { authOptions } from "@/lib/auth";
+import { getServerSessionSafe } from "@/lib/auth";
 import { redirect } from "next/navigation";
 
 export default async function PortalLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
-  const session = await getServerSession(authOptions);
+  const session = await getServerSessionSafe();
   if (!session) {
     redirect("/login");
   }
@@ -19,10 +18,10 @@ export default async function PortalLayout({
   const displayEmail = email.trim() || null;
 
   return (
-    <div className="flex min-h-screen bg-zinc-50">
+    <div className="flex h-screen overflow-hidden bg-zinc-50">
       <PortalSidebar />
 
-      <div className="flex min-w-0 flex-1 flex-col">
+      <div className="flex min-w-0 flex-1 min-h-0 flex-col overflow-hidden">
         <header className="flex items-center justify-between gap-4 border-b border-zinc-200 bg-white px-6 py-4">
           <div className="relative w-full max-w-xl">
             {/* <span className="pointer-events-none absolute inset-y-0 left-3 flex items-center text-zinc-400">
@@ -64,9 +63,11 @@ export default async function PortalLayout({
           </div>
         </header>
 
-        <main className="flex-1 px-6 py-8">{children}</main>
+        <main className="flex-1 min-h-0 overflow-y-auto px-6 py-8">
+          {children}
+        </main>
 
-        <footer className="bg-zinc-50 px-6 py-6 text-xs text-zinc-500">
+        <footer className="shrink-0 bg-zinc-50 px-6 py-6 text-xs text-zinc-500">
           <div className="mx-auto flex max-w-6xl flex-col gap-3 border-t border-zinc-200 pt-5 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <div className="font-medium text-zinc-700">Swinburne Wiki</div>

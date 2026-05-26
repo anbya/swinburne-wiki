@@ -76,7 +76,7 @@ export function PortalSidebar() {
   }, []);
 
   return (
-    <aside className="flex w-72 flex-col border-r border-zinc-200 bg-white">
+    <aside className="sticky top-0 flex h-screen w-72 shrink-0 flex-col overflow-hidden border-r border-zinc-200 bg-white">
       <div className="px-6 py-6">
         <div className="text-sm font-semibold text-red-700">Swinburne Wiki</div>
         <div className="text-xs text-zinc-500">Campus Knowledge Base</div>
@@ -132,22 +132,23 @@ export function PortalSidebar() {
         </ul>
       </nav>
 
-      <div className="mt-6 flex-1 px-3">
+      <div className="mt-6 flex flex-1 min-h-0 flex-col px-3">
         <div className="px-3 pb-2 text-[11px] font-semibold uppercase tracking-wide text-zinc-500">
           Categories
         </div>
-        {categoryTree.length === 0 ? (
-          <div className="px-3 text-xs text-zinc-500">No categories yet.</div>
-        ) : (
-          <ul className="space-y-0.5">
-            {categoryTree.map((node) => (
-              <CategoryTreeItem key={node.id} node={node} level={0} />
-            ))}
-          </ul>
-        )}
-      </div>
 
-      
+        <div className="flex-1 min-h-0 overflow-y-auto">
+          {categoryTree.length === 0 ? (
+            <div className="px-3 text-xs text-zinc-500">No categories yet.</div>
+          ) : (
+            <ul className="space-y-0.5">
+              {categoryTree.map((node) => (
+                <CategoryTreeItem key={node.id} node={node} level={0} />
+              ))}
+            </ul>
+          )}
+        </div>
+      </div>
 
       <div className="px-6 py-5">
         <button

@@ -1,4 +1,5 @@
 import type { NextAuthOptions } from "next-auth";
+import { getServerSession } from "next-auth/next";
 import AzureADProvider from "next-auth/providers/azure-ad";
 
 export const authOptions: NextAuthOptions = {
@@ -26,3 +27,17 @@ export const authOptions: NextAuthOptions = {
     signIn: "/login",
   },
 };
+
+export async function getServerSessionSafe() {
+  try {
+    return await getServerSession(authOptions);
+  } catch (error) {
+    const digest = (error as { digest?: unknown } | null)?.digest;
+    if (digest === "DYNAMIC_SERVER_USAGE") {
+      throw error;
+    }
+
+    console.error("[auth] getServerSession failed", error);
+    return null;
+  }
+}

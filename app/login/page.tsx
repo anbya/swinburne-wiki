@@ -1,7 +1,6 @@
 import Link from "next/link";
 import { SsoMicrosoftButton } from "./SsoMicrosoftButton";
-import { getServerSession } from "next-auth/next";
-import { authOptions } from "@/lib/auth";
+import { getServerSessionSafe } from "@/lib/auth";
 import { redirect } from "next/navigation";
 
 function Icon({
@@ -25,7 +24,7 @@ function Icon({
 }
 
 export default async function LoginPage() {
-  const session = await getServerSession(authOptions);
+  const session = await getServerSessionSafe();
   if (session) {
     redirect("/dashboard");
   }
