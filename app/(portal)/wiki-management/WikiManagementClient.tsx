@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Icons } from '../_components/icons'
 
 type CategoryRow = {
@@ -86,10 +86,14 @@ function formatBytes(bytes?: number) {
 
 export function WikiManagementClient({
   initialCategoryId,
+  mode = 'manage',
 }: {
   initialCategoryId: string
+  mode?: 'manage' | 'view'
 }) {
   const categoryId = initialCategoryId.trim()
+  const readOnly = mode === 'view'
+  const basePath = readOnly ? '/wiki' : '/wiki-management'
 
   const pageSize = 10
 
@@ -110,6 +114,8 @@ export function WikiManagementClient({
   const [draftCategory, setDraftCategory] = useState<string>(categoryId)
   const [draftAttachments, setDraftAttachments] = useState<Attachment[]>([])
 
+  const draftContentRef = useRef('')
+
   const editorRef = useRef<HTMLDivElement | null>(null)
   const fileInputRef = useRef<HTMLInputElement | null>(null)
   const [uploading, setUploading] = useState(false)
@@ -127,7 +133,7 @@ export function WikiManagementClient({
     [categories]
   )
 
-  const reloadPages = async (nextPage: number) => {
+  const reloadPages = useCallback(async (nextPage: number) => {
     setLoading(true)
     setError(null)
 
@@ -140,7 +146,7 @@ export function WikiManagementClient({
 
     const res = await fetch(url, { cache: 'no-store' }).catch(() => null)
     if (!res || !res.ok) {
-      setError('Gagal memuat wiki pages')
+      setError('Failed to load wiki pages')
       setLoading(false)
       return
     }
@@ -150,17 +156,19 @@ export function WikiManagementClient({
     const meta = Array.isArray(json) ? null : (json?.meta ?? null)
 
     const nextTotal = typeof meta?.total === 'number' ? meta.total : next.length
-    const nextTotalPages = typeof meta?.totalPages === 'number' ? meta.totalPages : 1
+    const nextTotalPagesRaw = typeof meta?.totalPages === 'number' ? meta.totalPages : 1
+    const nextTotalPages = Math.max(1, nextTotalPagesRaw)
     const nextPageFromMeta = typeof meta?.page === 'number' ? meta.page : nextPage
+    const clampedPage = Math.min(Math.max(1, nextPageFromMeta), nextTotalPages)
 
     setPages(next)
     setTotal(nextTotal)
-    setTotalPages(Math.max(1, nextTotalPages))
-    if (nextPageFromMeta !== nextPage) {
-      setPage(Math.max(1, nextPageFromMeta))
+    setTotalPages(nextTotalPages)
+    if (clampedPage !== nextPage) {
+      setPage(clampedPage)
     }
     setLoading(false)
-  }
+  }, [categoryId])
 
   useEffect(() => {
     let cancelled = false
@@ -185,13 +193,14 @@ export function WikiManagementClient({
     ;(async () => {
       await reloadPages(page)
     })()
-  }, [categoryId, page])
+  }, [categoryId, page, reloadPages])
 
   useEffect(() => {
-    setPage((p) => Math.min(Math.max(1, p), totalPages))
-  }, [totalPages])
+    draftContentRef.current = draftContent
+  }, [draftContent])
 
   const openAddModal = () => {
+    if (readOnly) return
     setError(null)
     setModalMode('add')
     setEditingId('')
@@ -203,6 +212,7 @@ export function WikiManagementClient({
   }
 
   const openEditModal = (row: WikiPageRow) => {
+    if (readOnly) return
     setError(null)
     setModalMode('edit')
     setEditingId(row.id)
@@ -226,19 +236,12 @@ export function WikiManagementClient({
   useEffect(() => {
     if (!modalOpen) return
     if (!editorRef.current) return
-    editorRef.current.innerHTML = draftContent || ''
+    editorRef.current.innerHTML = draftContentRef.current || ''
   }, [modalOpen, modalMode, editingId])
 
   const syncEditorToState = () => {
     const html = editorRef.current?.innerHTML ?? ''
     setDraftContent(html)
-  }
-
-  const insertHtml = (html: string) => {
-    if (!editorRef.current) return
-    editorRef.current.focus()
-    exec('insertHTML', html)
-    syncEditorToState()
   }
 
   const onUploadFile = async (file: File) => {
@@ -256,7 +259,7 @@ export function WikiManagementClient({
     setUploading(false)
 
     if (!res || !res.ok) {
-      const fallback = 'Gagal upload file'
+      const fallback = 'File upload failed'
       const json = (await res?.json().catch(() => null)) as { error?: unknown } | null
       const message = typeof json?.error === 'string' && json.error.trim() ? json.error : fallback
       setError(message)
@@ -272,7 +275,7 @@ export function WikiManagementClient({
     const mime = typeof json?.mime === 'string' ? json.mime : file.type
     const size = typeof json?.size === 'number' ? json.size : file.size
     if (!url) {
-      setError('Gagal upload file')
+      setError('File upload failed')
       return
     }
 
@@ -286,13 +289,13 @@ export function WikiManagementClient({
     const list = Array.from(files)
     if (list.length === 0) return
     for (const f of list) {
-      // eslint-disable-next-line no-await-in-loop
       await onUploadFile(f)
     }
   }
 
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    if (readOnly) return
     const t = draftTitle.trim()
     if (!t) return
 
@@ -317,7 +320,7 @@ export function WikiManagementClient({
     setSaving(false)
 
     if (!res || !res.ok) {
-      const fallback = isEditing ? 'Gagal mengupdate wiki page' : 'Gagal membuat wiki page'
+      const fallback = isEditing ? 'Failed to update wiki page' : 'Failed to create wiki page'
       const json = (await res?.json().catch(() => null)) as { error?: unknown } | null
       const message = typeof json?.error === 'string' && json.error.trim() ? json.error : fallback
       setError(message)
@@ -335,14 +338,18 @@ export function WikiManagementClient({
   return (
     <div className="mx-auto w-full max-w-5xl">
       <div className="mb-6">
-        <h1 className="text-2xl font-semibold tracking-tight text-zinc-900">Wiki Management</h1>
+        <h1 className="text-2xl font-semibold tracking-tight text-zinc-900">
+          {readOnly ? 'Wiki' : 'Wiki Management'}
+        </h1>
         <p className="mt-1 text-sm text-zinc-600">
-          Kelola artikel wiki dan hubungkan ke category.
+          {readOnly
+            ? 'Browse wiki articles by category.'
+            : 'Manage wiki articles and link them to categories.'}
         </p>
         {activeCategoryName ? (
           <div className="mt-2 text-xs text-zinc-500">
             Filter category: <span className="font-medium text-zinc-700">{activeCategoryName}</span>{' '}
-            <Link className="text-red-700 hover:underline" href="/wiki-management">
+            <Link className="text-red-700 hover:underline" href={basePath}>
               reset
             </Link>
           </div>
@@ -352,50 +359,55 @@ export function WikiManagementClient({
       <section className="rounded-2xl border border-zinc-200 bg-white p-6">
         <div className="flex items-center justify-between gap-4">
           <div>
-            <h2 className="text-sm font-semibold text-zinc-900">Daftar Artikel</h2>
-            <p className="mt-1 text-xs text-zinc-500">Tampilkan data dalam table dengan pagination.</p>
+            <h2 className="text-sm font-semibold text-zinc-900">Article List</h2>
+            <p className="mt-1 text-xs text-zinc-500">Display data in a paginated table.</p>
             {error && !modalOpen ? (
               <div className="mt-2 text-xs text-red-700">{error}</div>
             ) : null}
           </div>
 
-          <button
-            type="button"
-            onClick={openAddModal}
-            className="inline-flex h-10 items-center gap-2 rounded-lg bg-red-700 px-4 text-sm font-semibold text-white hover:bg-red-800"
-          >
-            <Icons.plus className="size-4" />
-            Tambah Artikel
-          </button>
+          {!readOnly ? (
+            <button
+              type="button"
+              onClick={openAddModal}
+              className="inline-flex h-10 items-center gap-2 rounded-lg bg-red-700 px-4 text-sm font-semibold text-white hover:bg-red-800"
+            >
+              <Icons.plus className="size-4" />
+              Add Article
+            </button>
+          ) : null}
         </div>
 
         <div className="mt-4 overflow-hidden rounded-xl border border-zinc-200">
           <table className="w-full text-left text-sm">
             <thead className="bg-zinc-50">
               <tr className="text-xs font-semibold text-zinc-600">
-                <th className="px-4 py-3">Judul</th>
+                <th className="px-4 py-3">Title</th>
                 <th className="px-4 py-3">Category</th>
-                <th className="px-4 py-3">Konten</th>
-                <th className="px-4 py-3 text-right">Aksi</th>
+                <th className="px-4 py-3">Content</th>
+                <th className="px-4 py-3 text-right">{readOnly ? 'Details' : 'Actions'}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-zinc-200">
               {loading ? (
                 <tr>
                   <td className="px-4 py-4 text-zinc-500" colSpan={4}>
-                    Memuat…
+                    Loading…
                   </td>
                 </tr>
               ) : pages.length === 0 ? (
                 <tr>
                   <td className="px-4 py-4 text-zinc-500" colSpan={4}>
-                    Belum ada artikel.
+                    No articles yet.
                   </td>
                 </tr>
               ) : (
                 pages.map((p) => {
                   const catName = p.category_id
                     ? categoriesById.get(p.category_id)?.name ?? null
+                    : null
+                  const detailHref = readOnly
+                    ? `${basePath}/${encodeURIComponent(p.id)}${categoryId ? `?categoryId=${encodeURIComponent(categoryId)}` : ''}`
                     : null
                   return (
                     <tr key={p.id} className="align-top">
@@ -410,14 +422,25 @@ export function WikiManagementClient({
                       </td>
                       <td className="px-4 py-3">
                         <div className="flex items-center justify-end">
-                          <button
-                            type="button"
-                            onClick={() => openEditModal(p)}
-                            className="inline-flex size-9 items-center justify-center rounded-lg border border-zinc-200 bg-white text-zinc-600 hover:bg-zinc-50"
-                            aria-label="Edit"
-                          >
-                            <Icons.edit className="size-4" />
-                          </button>
+                          {readOnly && detailHref ? (
+                            <Link
+                              href={detailHref}
+                              className="inline-flex size-9 items-center justify-center rounded-lg border border-zinc-200 bg-white text-zinc-600 hover:bg-zinc-50"
+                              aria-label="View details"
+                              title="View details"
+                            >
+                              <Icons.search className="size-4" />
+                            </Link>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => openEditModal(p)}
+                              className="inline-flex size-9 items-center justify-center rounded-lg border border-zinc-200 bg-white text-zinc-600 hover:bg-zinc-50"
+                              aria-label="Edit"
+                            >
+                              <Icons.edit className="size-4" />
+                            </button>
+                          )}
                         </div>
                       </td>
                     </tr>
@@ -432,7 +455,7 @@ export function WikiManagementClient({
           <div className="text-xs text-zinc-500">
             {total === 0
               ? '0 data'
-              : `Menampilkan ${(page - 1) * pageSize + 1}–${Math.min(page * pageSize, total)} dari ${total}`}
+              : `Showing ${(page - 1) * pageSize + 1}–${Math.min(page * pageSize, total)} of ${total}`}
           </div>
 
           <div className="flex items-center gap-2">
@@ -459,41 +482,41 @@ export function WikiManagementClient({
         </div>
       </section>
 
-      {modalOpen ? (
+      {!readOnly && modalOpen ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-zinc-900/40" aria-hidden="true" />
 
           <div className="relative w-full max-h-[80vh] max-w-2xl overflow-y-auto rounded-2xl border border-zinc-200 bg-white p-6">
             <div className="mb-4">
               <h3 className="text-sm font-semibold text-zinc-900">
-                {modalMode === 'edit' ? 'Edit Artikel' : 'Tambah Artikel'}
+                {modalMode === 'edit' ? 'Edit Article' : 'Add Article'}
               </h3>
               <p className="mt-1 text-xs text-zinc-500">
                 {modalMode === 'edit'
-                  ? 'Ubah judul, category, dan konten artikel.'
-                  : 'Buat artikel wiki baru.'}
+                  ? 'Update the title, category, and content.'
+                  : 'Create a new wiki article.'}
               </p>
             </div>
 
             <form className="space-y-4" onSubmit={onSubmit}>
               <div>
-                <label className="text-xs font-medium text-zinc-700">Judul</label>
+                <label className="text-xs font-medium text-zinc-700">Title</label>
                 <input
                   className="mt-1 h-10 w-full rounded-lg border border-zinc-200 bg-white px-3 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-zinc-300 focus:outline-none"
                   value={draftTitle}
                   onChange={(e) => setDraftTitle(e.target.value)}
-                  placeholder="Contoh: Cara akses Wi‑Fi Kampus"
+                  placeholder="Example: How to access campus Wi‑Fi"
                 />
               </div>
 
               <div>
-                <label className="text-xs font-medium text-zinc-700">Category (opsional)</label>
+                <label className="text-xs font-medium text-zinc-700">Category (optional)</label>
                 <select
                   className="mt-1 h-10 w-full rounded-lg border border-zinc-200 bg-white px-3 text-sm text-zinc-900 focus:border-zinc-300 focus:outline-none"
                   value={draftCategory}
                   onChange={(e) => setDraftCategory(e.target.value)}
                 >
-                  <option value="">— Tidak ada —</option>
+                  <option value="">— None —</option>
                   {categoriesSorted.map((cat) => (
                     <option key={cat.id} value={cat.id}>
                       {cat.name}
@@ -503,7 +526,7 @@ export function WikiManagementClient({
               </div>
 
               <div>
-                <label className="text-xs font-medium text-zinc-700">Konten</label>
+                <label className="text-xs font-medium text-zinc-700">Content</label>
                 <div className="mt-2 rounded-lg border border-zinc-200 bg-white">
                   <div className="flex flex-wrap items-center gap-1 border-b border-zinc-200 bg-zinc-50 p-2">
                     <button
@@ -670,7 +693,7 @@ export function WikiManagementClient({
                 ) : null}
 
                 <div className="mt-1 text-[11px] text-zinc-500">
-                  Konten disimpan sebagai HTML. Attachments tersimpan terpisah seperti email.
+                  Content is stored as HTML. Attachments are stored separately (like email).
                 </div>
               </div>
 
@@ -686,14 +709,14 @@ export function WikiManagementClient({
                   }}
                   className="inline-flex h-10 items-center justify-center rounded-lg border border-zinc-200 bg-white px-4 text-sm font-semibold text-zinc-900 hover:bg-zinc-50 disabled:opacity-60"
                 >
-                  Batal
+                  Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={saving || uploading}
                   className="inline-flex h-10 items-center justify-center rounded-lg bg-red-700 px-4 text-sm font-semibold text-white hover:bg-red-800 disabled:opacity-60"
                 >
-                  {saving ? 'Menyimpan…' : modalMode === 'edit' ? 'Update' : 'Tambah'}
+                  {saving ? 'Saving…' : modalMode === 'edit' ? 'Update' : 'Add'}
                 </button>
               </div>
             </form>

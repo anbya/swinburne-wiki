@@ -76,14 +76,11 @@ export function CategoryManagementClient() {
     return Math.max(1, Math.ceil(categoriesSorted.length / pageSize))
   }, [categoriesSorted.length])
 
-  useEffect(() => {
-    setPage((p) => Math.min(Math.max(1, p), totalPages))
-  }, [totalPages])
-
   const pagedItems = useMemo(() => {
-    const start = (page - 1) * pageSize
+    const clampedPage = Math.min(Math.max(1, page), totalPages)
+    const start = (clampedPage - 1) * pageSize
     return categoriesSorted.slice(start, start + pageSize)
-  }, [categoriesSorted, page])
+  }, [categoriesSorted, page, totalPages])
 
   const forbiddenParentIds = useMemo(() => {
     if (!modalOpen || modalMode !== 'edit' || !editingId) return new Set<string>()
@@ -91,6 +88,9 @@ export function CategoryManagementClient() {
     set.add(editingId)
     return set
   }, [modalOpen, modalMode, editingId, tree])
+
+  const effectiveDraftParentId =
+    draftParentId && forbiddenParentIds.has(draftParentId) ? '' : draftParentId
 
   const allowedParentOptions = useMemo(() => {
     if (!modalOpen) return categoriesSorted
@@ -104,14 +104,18 @@ export function CategoryManagementClient() {
 
     const res = await fetch('/api/categories', { cache: 'no-store' }).catch(() => null)
     if (!res || !res.ok) {
-      setError('Gagal memuat categories')
+      setError('Failed to load categories')
       setLoading(false)
       return
     }
 
     const json = (await res.json().catch(() => null)) as CategoriesResponse | null
-    setFlat(json?.data ?? [])
+    const nextFlat = json?.data ?? []
+    setFlat(nextFlat)
     setTree(json?.tree ?? [])
+
+    const nextTotalPages = Math.max(1, Math.ceil(nextFlat.length / pageSize))
+    setPage((p) => Math.min(Math.max(1, p), nextTotalPages))
     setLoading(false)
   }
 
@@ -127,15 +131,19 @@ export function CategoryManagementClient() {
       )
       if (cancelled) return
       if (!res || !res.ok) {
-        setError('Gagal memuat categories')
+        setError('Failed to load categories')
         setLoading(false)
         return
       }
 
       const json = (await res.json().catch(() => null)) as CategoriesResponse | null
       if (cancelled) return
-      setFlat(json?.data ?? [])
+      const nextFlat = json?.data ?? []
+      setFlat(nextFlat)
       setTree(json?.tree ?? [])
+
+      const nextTotalPages = Math.max(1, Math.ceil(nextFlat.length / pageSize))
+      setPage((p) => Math.min(Math.max(1, p), nextTotalPages))
       setLoading(false)
     })()
 
@@ -143,13 +151,6 @@ export function CategoryManagementClient() {
       cancelled = true
     }
   }, [])
-
-  useEffect(() => {
-    if (!modalOpen || modalMode !== 'edit') return
-    if (draftParentId && forbiddenParentIds.has(draftParentId)) {
-      setDraftParentId('')
-    }
-  }, [modalOpen, modalMode, draftParentId, forbiddenParentIds])
 
   const openAddModal = () => {
     setError(null)
@@ -197,14 +198,14 @@ export function CategoryManagementClient() {
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({
         name: trimmed,
-        parent_id: draftParentId.trim() ? draftParentId.trim() : null,
+        parent_id: effectiveDraftParentId.trim() ? effectiveDraftParentId.trim() : null,
       }),
     }).catch(() => null)
 
     setSaving(false)
 
     if (!res || !res.ok) {
-      const fallback = isEditing ? 'Gagal mengupdate category' : 'Gagal membuat category'
+      const fallback = isEditing ? 'Failed to update category' : 'Failed to create category'
       const json = (await res?.json().catch(() => null)) as { error?: unknown } | null
       const message = typeof json?.error === 'string' && json.error.trim() ? json.error : fallback
       setError(message)
@@ -219,14 +220,14 @@ export function CategoryManagementClient() {
     <div className="mx-auto w-full max-w-5xl">
       <div className="mb-6">
         <h1 className="text-2xl font-semibold tracking-tight text-zinc-900">Category Management</h1>
-        <p className="mt-1 text-sm text-zinc-600">Kelola struktur kategori untuk wiki kampus.</p>
+        <p className="mt-1 text-sm text-zinc-600">Manage the wiki category hierarchy.</p>
       </div>
 
       <section className="rounded-2xl border border-zinc-200 bg-white p-6">
         <div className="flex items-center justify-between gap-4">
           <div>
-            <h2 className="text-sm font-semibold text-zinc-900">Daftar Categories</h2>
-            <p className="mt-1 text-xs text-zinc-500">Tampilkan data dalam table dengan pagination.</p>
+            <h2 className="text-sm font-semibold text-zinc-900">Category List</h2>
+            <p className="mt-1 text-xs text-zinc-500">Display data in a paginated table.</p>
             {error && !modalOpen ? (
               <div className="mt-2 text-xs text-red-700">{error}</div>
             ) : null}
@@ -238,7 +239,7 @@ export function CategoryManagementClient() {
             className="inline-flex h-10 items-center gap-2 rounded-lg bg-red-700 px-4 text-sm font-semibold text-white hover:bg-red-800"
           >
             <Icons.plus className="size-4" />
-            Tambah Category
+            Add Category
           </button>
         </div>
 
@@ -246,22 +247,22 @@ export function CategoryManagementClient() {
           <table className="w-full text-left text-sm">
             <thead className="bg-zinc-50">
               <tr className="text-xs font-semibold text-zinc-600">
-                <th className="px-4 py-3">Nama</th>
+                <th className="px-4 py-3">Name</th>
                 <th className="px-4 py-3">Parent</th>
-                <th className="px-4 py-3 text-right">Aksi</th>
+                <th className="px-4 py-3 text-right">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-zinc-200">
               {loading ? (
                 <tr>
                   <td className="px-4 py-4 text-zinc-500" colSpan={3}>
-                    Memuat…
+                    Loading…
                   </td>
                 </tr>
               ) : pagedItems.length === 0 ? (
                 <tr>
                   <td className="px-4 py-4 text-zinc-500" colSpan={3}>
-                    Belum ada category.
+                    No categories yet.
                   </td>
                 </tr>
               ) : (
@@ -297,7 +298,7 @@ export function CategoryManagementClient() {
               if (total === 0) return '0 data'
               const start = (page - 1) * pageSize + 1
               const end = Math.min(page * pageSize, total)
-              return `Menampilkan ${start}–${end} dari ${total}`
+              return `Showing ${start}–${end} of ${total}`
             })()}
           </div>
 
@@ -332,34 +333,34 @@ export function CategoryManagementClient() {
           <div className="relative w-full max-h-[80vh] max-w-lg overflow-y-auto rounded-2xl border border-zinc-200 bg-white p-6">
             <div className="mb-4">
               <h3 className="text-sm font-semibold text-zinc-900">
-                {modalMode === 'edit' ? 'Edit Category' : 'Tambah Category'}
+                {modalMode === 'edit' ? 'Edit Category' : 'Add Category'}
               </h3>
               <p className="mt-1 text-xs text-zinc-500">
                 {modalMode === 'edit'
-                  ? 'Ubah nama dan parent category.'
-                  : 'Buat category baru untuk struktur wiki.'}
+                  ? 'Update the name and parent category.'
+                  : 'Create a new category for the wiki structure.'}
               </p>
             </div>
 
             <form className="space-y-4" onSubmit={onSubmit}>
               <div>
-                <label className="text-xs font-medium text-zinc-700">Nama</label>
+                <label className="text-xs font-medium text-zinc-700">Name</label>
                 <input
                   className="mt-1 h-10 w-full rounded-lg border border-zinc-200 bg-white px-3 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-zinc-300 focus:outline-none"
                   value={draftName}
                   onChange={(e) => setDraftName(e.target.value)}
-                  placeholder="Contoh: Akademik"
+                  placeholder="Example: Academics"
                 />
               </div>
 
               <div>
-                <label className="text-xs font-medium text-zinc-700">Parent (opsional)</label>
+                <label className="text-xs font-medium text-zinc-700">Parent (optional)</label>
                 <select
                   className="mt-1 h-10 w-full rounded-lg border border-zinc-200 bg-white px-3 text-sm text-zinc-900 focus:border-zinc-300 focus:outline-none"
-                  value={draftParentId}
+                  value={effectiveDraftParentId}
                   onChange={(e) => setDraftParentId(e.target.value)}
                 >
-                  <option value="">— Tidak ada —</option>
+                  <option value="">— None —</option>
                   {allowedParentOptions.map((cat) => (
                     <option key={cat.id} value={cat.id}>
                       {cat.name}
@@ -380,14 +381,14 @@ export function CategoryManagementClient() {
                   }}
                   className="inline-flex h-10 items-center justify-center rounded-lg border border-zinc-200 bg-white px-4 text-sm font-semibold text-zinc-900 hover:bg-zinc-50 disabled:opacity-60"
                 >
-                  Batal
+                  Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={saving}
                   className="inline-flex h-10 items-center justify-center rounded-lg bg-red-700 px-4 text-sm font-semibold text-white hover:bg-red-800 disabled:opacity-60"
                 >
-                  {saving ? 'Menyimpan…' : modalMode === 'edit' ? 'Update' : 'Tambah'}
+                  {saving ? 'Saving…' : modalMode === 'edit' ? 'Update' : 'Add'}
                 </button>
               </div>
             </form>

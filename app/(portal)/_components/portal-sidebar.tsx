@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { signOut } from "next-auth/react";
 import { Icons } from "./icons";
@@ -21,29 +21,44 @@ const navItems = [
 function CategoryTreeItem({
   node,
   level,
+  activeCategoryId,
 }: {
   node: CategoryNode;
   level: number;
+  activeCategoryId: string;
 }) {
   const href = useMemo(() => {
     const id = encodeURIComponent(node.id);
-    return `/wiki-management?categoryId=${id}`;
+    return `/wiki?categoryId=${id}`;
   }, [node.id]);
+
+  const active = activeCategoryId === node.id;
 
   return (
     <li>
       <Link
         href={href}
-        className="block truncate rounded-md px-3 py-1.5 text-xs text-zinc-700 hover:bg-zinc-50 hover:text-zinc-900"
+        className={
+          "block truncate rounded-md px-3 py-1.5 text-xs transition-colors " +
+          (active
+            ? "bg-red-50 text-red-700"
+            : "text-zinc-700 hover:bg-zinc-50 hover:text-zinc-900")
+        }
         style={{ paddingLeft: 12 + level * 12 }}
         title={node.name}
+        aria-current={active ? "page" : undefined}
       >
         {node.name}
       </Link>
       {node.children.length > 0 ? (
         <ul className="space-y-0.5">
           {node.children.map((child) => (
-            <CategoryTreeItem key={child.id} node={child} level={level + 1} />
+            <CategoryTreeItem
+              key={child.id}
+              node={child}
+              level={level + 1}
+              activeCategoryId={activeCategoryId}
+            />
           ))}
         </ul>
       ) : null}
@@ -53,6 +68,8 @@ function CategoryTreeItem({
 
 export function PortalSidebar() {
   const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const activeCategoryId = (searchParams.get("categoryId") ?? "").trim();
   const [categoryTree, setCategoryTree] = useState<CategoryNode[]>([]);
 
   useEffect(() => {
@@ -143,7 +160,12 @@ export function PortalSidebar() {
           ) : (
             <ul className="space-y-0.5">
               {categoryTree.map((node) => (
-                <CategoryTreeItem key={node.id} node={node} level={0} />
+                <CategoryTreeItem
+                  key={node.id}
+                  node={node}
+                  level={0}
+                  activeCategoryId={activeCategoryId}
+                />
               ))}
             </ul>
           )}

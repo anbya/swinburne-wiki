@@ -23,7 +23,7 @@ export default function DashboardPage() {
       id: newId(),
       role: "assistant",
       content:
-        "Halo! Tanyakan apa pun tentang informasi kampus. (UI chat sudah siap; integrasi AI bisa ditambahkan berikutnya.)",
+        "Hi! Ask me anything about campus information. (The chat UI is ready; AI integration can be added next.)",
     },
   ]);
 
@@ -51,7 +51,7 @@ export default function DashboardPage() {
         id: newId(),
         role: "assistant",
         content:
-          "Aku bisa bantu carikan di wiki. Saat ini belum ada koneksi ke AI/knowledge retrieval—mau aku sambungkan ke data wiki berikutnya?",
+          "I can help you find that in the wiki. There’s no AI/knowledge retrieval connected yet—should I wire it up to the wiki data next?",
       },
     ]);
   };
@@ -91,7 +91,7 @@ export default function DashboardPage() {
           <div className="flex items-end gap-3">
             <textarea
               className="min-h-11 flex-1 resize-none rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-zinc-300 focus:outline-none"
-              placeholder="Ketik pertanyaan..."
+              placeholder="Type your question..."
               value={input}
               onChange={(e) => setInput(e.target.value)}
               rows={1}
@@ -101,11 +101,11 @@ export default function DashboardPage() {
               disabled={!canSend}
               className="inline-flex h-11 items-center justify-center rounded-xl bg-red-700 px-4 text-sm font-semibold text-white hover:bg-red-800 disabled:opacity-60"
             >
-              Kirim
+              Send
             </button>
           </div>
           <div className="mt-2 text-[11px] text-zinc-500">
-            Dashboard ini fokus ke chat seperti ChatGPT.
+            This dashboard focuses on a ChatGPT-style chat.
           </div>
         </form>
       </div>
