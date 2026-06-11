@@ -7,6 +7,9 @@ const eslintConfig = defineConfig([
   ...nextTs,
   // Override default ignores of eslint-config-next.
   globalIgnores([
+    // Keep large dependency and VCS trees out of project-wide traversal.
+    "node_modules/**",
+    ".git/**",
     // Default ignores of eslint-config-next:
     ".next/**",
     "out/**",

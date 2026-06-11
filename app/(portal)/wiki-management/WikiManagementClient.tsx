@@ -84,6 +84,22 @@ function formatBytes(bytes?: number) {
   return `${Math.round((bytes / (1024 * 1024 * 1024)) * 10) / 10} GB`
 }
 
+async function syncWikiEmbedding(input: {
+  id: string
+}) {
+  const res = await fetch(`/api/wiki-pages/${encodeURIComponent(input.id)}/ingest`, {
+    method: 'POST',
+  }).catch(() => null)
+
+  if (!res || !res.ok) {
+    const fallback = 'Wiki page saved, but embedding sync failed'
+    const json = (await res?.json().catch(() => null)) as { error?: unknown } | null
+    return typeof json?.error === 'string' && json.error.trim() ? json.error : fallback
+  }
+
+  return null
+}
+
 export function WikiManagementClient({
   initialCategoryId,
   mode = 'manage',
@@ -317,9 +333,8 @@ export function WikiManagementClient({
       }),
     }).catch(() => null)
 
-    setSaving(false)
-
     if (!res || !res.ok) {
+      setSaving(false)
       const fallback = isEditing ? 'Failed to update wiki page' : 'Failed to create wiki page'
       const json = (await res?.json().catch(() => null)) as { error?: unknown } | null
       const message = typeof json?.error === 'string' && json.error.trim() ? json.error : fallback
@@ -327,8 +342,20 @@ export function WikiManagementClient({
       return
     }
 
+    const savedRow = (await res.json().catch(() => null)) as WikiPageRow | null
+    const syncError = savedRow?.id
+      ? await syncWikiEmbedding({
+          id: savedRow.id,
+        })
+      : 'Wiki page saved, but embedding sync failed'
+
+    setSaving(false)
+
     closeModal()
     await reloadPages(1)
+    if (syncError) {
+      setError(syncError)
+    }
   }
 
   const activeCategoryName = categoryId
