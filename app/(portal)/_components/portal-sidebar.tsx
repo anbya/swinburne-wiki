@@ -13,6 +13,15 @@ type CategoryNode = {
   children: CategoryNode[];
 };
 
+type ChatSession = {
+  id: string;
+  title: string;
+  model_name: string | null;
+  total_messages: number;
+  created_at: string;
+  updated_at: string;
+};
+
 const navItems = [
   { href: "/category-management", label: "Category Management", icon: Icons.users },
   { href: "/wiki-management", label: "Wiki Management", icon: Icons.grid },
@@ -70,7 +79,9 @@ export function PortalSidebar() {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const activeCategoryId = (searchParams.get("categoryId") ?? "").trim();
+  const activeSessionId = (searchParams.get("sessionId") ?? "").trim();
   const [categoryTree, setCategoryTree] = useState<CategoryNode[]>([]);
+  const [chatSessions, setChatSessions] = useState<ChatSession[]>([]);
 
   useEffect(() => {
     let cancelled = false;
@@ -87,6 +98,18 @@ export function PortalSidebar() {
       setCategoryTree(json?.tree ?? []);
     })();
 
+    (async () => {
+      const res = await fetch("/api/chat-sessions", { cache: "no-store" }).catch(
+        () => null
+      );
+      if (!res || !res.ok) return;
+      const json = (await res.json().catch(() => null)) as
+        | { data?: ChatSession[] }
+        | null;
+      if (cancelled) return;
+      setChatSessions(json?.data ?? []);
+    })();
+
     return () => {
       cancelled = true;
     };
@@ -101,18 +124,18 @@ export function PortalSidebar() {
 
       <div className="px-3 pb-2">
         <Link
-          href="/dashboard"
-          title="Search Wiki"
-          aria-label="Search Wiki"
+          href="/chat/new"
+          title="New Chat Wiki"
+          aria-label="New Chat Wiki"
           className={
             "flex w-full items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold text-white transition-colors " +
-            (pathname === "/dashboard"
+            (pathname === "/chat/new" || (pathname === "/dashboard" && !activeSessionId)
               ? "bg-red-800"
               : "bg-red-700 hover:bg-red-800")
           }
         >
-          <Icons.search className="size-4" />
-          <span>Search Wiki</span>
+          <Icons.plus className="size-4" />
+          <span>New Chat Wiki</span>
         </Link>
       </div>
 
@@ -149,26 +172,75 @@ export function PortalSidebar() {
         </ul>
       </nav>
 
-      <div className="mt-6 flex flex-1 min-h-0 flex-col px-3">
-        <div className="px-3 pb-2 text-[11px] font-semibold uppercase tracking-wide text-zinc-500">
-          Categories
+      <div className="mt-6 flex flex-1 min-h-0 flex-col gap-6 px-3">
+        <div className="flex min-h-0 flex-col">
+          <div className="flex items-center gap-2 px-3 pb-2 text-[11px] font-semibold uppercase tracking-wide text-zinc-500">
+            <Icons.chat className="size-3.5" />
+            Chat Sessions
+          </div>
+
+          <div className="max-h-56 overflow-y-auto">
+            {chatSessions.length === 0 ? (
+              <div className="px-3 text-xs text-zinc-500">No chats yet.</div>
+            ) : (
+              <ul className="space-y-0.5">
+                {chatSessions.map((session) => {
+                  const href = `/dashboard?sessionId=${encodeURIComponent(session.id)}`;
+                  const active = pathname === "/dashboard" && activeSessionId === session.id;
+
+                  return (
+                    <li key={session.id}>
+                      <Link
+                        href={href}
+                        title={session.title}
+                        className={
+                          "block rounded-md px-3 py-2 transition-colors " +
+                          (active
+                            ? "bg-red-50 text-red-700"
+                            : "text-zinc-700 hover:bg-zinc-50 hover:text-zinc-900")
+                        }
+                        aria-current={active ? "page" : undefined}
+                      >
+                        <div className="truncate text-xs font-medium">{session.title}</div>
+                        <div
+                          className={
+                            "mt-0.5 truncate text-[11px] " +
+                            (active ? "text-red-600" : "text-zinc-500")
+                          }
+                        >
+                          {session.total_messages} messages
+                          {session.model_name ? ` • ${session.model_name}` : ""}
+                        </div>
+                      </Link>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+          </div>
         </div>
 
-        <div className="flex-1 min-h-0 overflow-y-auto">
-          {categoryTree.length === 0 ? (
-            <div className="px-3 text-xs text-zinc-500">No categories yet.</div>
-          ) : (
-            <ul className="space-y-0.5">
-              {categoryTree.map((node) => (
-                <CategoryTreeItem
-                  key={node.id}
-                  node={node}
-                  level={0}
-                  activeCategoryId={activeCategoryId}
-                />
-              ))}
-            </ul>
-          )}
+        <div className="flex flex-1 min-h-0 flex-col">
+          <div className="px-3 pb-2 text-[11px] font-semibold uppercase tracking-wide text-zinc-500">
+            Categories
+          </div>
+
+          <div className="flex-1 min-h-0 overflow-y-auto">
+            {categoryTree.length === 0 ? (
+              <div className="px-3 text-xs text-zinc-500">No categories yet.</div>
+            ) : (
+              <ul className="space-y-0.5">
+                {categoryTree.map((node) => (
+                  <CategoryTreeItem
+                    key={node.id}
+                    node={node}
+                    level={0}
+                    activeCategoryId={activeCategoryId}
+                  />
+                ))}
+              </ul>
+            )}
+          </div>
         </div>
       </div>
 

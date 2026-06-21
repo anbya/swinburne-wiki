@@ -1,4 +1,5 @@
 import { pool } from '@/lib/db'
+import { DEFAULT_CHAT_MODEL } from '@/src/lib/chat-models'
 import { generateEmbedding } from '@/src/lib/rag/embedding'
 
 type ChatRole = 'user' | 'assistant'
@@ -18,6 +19,10 @@ type RetrievedChunk = {
 type ChatAnswer = {
   answer: string
   sources: Array<{ title: string; score: number }>
+  promptTokens?: number | null
+  completionTokens?: number | null
+  totalTokens?: number | null
+  modelName: string
 }
 
 function toVectorLiteral(values: number[]) {
@@ -63,9 +68,12 @@ function buildContextBlock(chunks: RetrievedChunk[]) {
     .join('\n\n')
 }
 
-async function callOllamaChat(messages: Array<{ role: 'system' | ChatRole; content: string }>) {
+async function callOllamaChat(
+  messages: Array<{ role: 'system' | ChatRole; content: string }>,
+  modelName?: string | null
+) {
   const baseUrl = process.env.OLLAMA_BASE_URL?.trim() || 'http://localhost:11434'
-  const model = process.env.OLLAMA_CHAT_MODEL?.trim() || 'qwen3:14b'
+  const model = getConfiguredChatModelName(modelName)
 
   const response = await fetch(`${baseUrl.replace(/\/$/, '')}/api/chat`, {
     method: 'POST',
@@ -88,6 +96,8 @@ async function callOllamaChat(messages: Array<{ role: 'system' | ChatRole; conte
   }
 
   const json = (await response.json()) as {
+    prompt_eval_count?: unknown
+    eval_count?: unknown
     message?: {
       content?: unknown
     }
@@ -98,12 +108,26 @@ async function callOllamaChat(messages: Array<{ role: 'system' | ChatRole; conte
     throw new Error('Ollama did not return chat content')
   }
 
-  return text
+  return {
+    text,
+    model,
+    promptTokens:
+      typeof json.prompt_eval_count === 'number' ? json.prompt_eval_count : null,
+    completionTokens: typeof json.eval_count === 'number' ? json.eval_count : null,
+  }
+}
+
+export function getConfiguredChatModelName(modelName?: string | null) {
+  const selectedModel = modelName?.trim() ?? ''
+  if (selectedModel) return selectedModel
+
+  return process.env.OLLAMA_CHAT_MODEL?.trim() || DEFAULT_CHAT_MODEL
 }
 
 export async function generateRagAnswer(
   message: string,
-  history: ChatHistoryMessage[]
+  history: ChatHistoryMessage[],
+  modelName?: string | null
 ): Promise<ChatAnswer> {
   const normalizedQuestion = message.trim()
   if (!normalizedQuestion) throw new Error('message is required')
@@ -133,17 +157,22 @@ export async function generateRagAnswer(
     '- Write the final answer in English.',
   ].join('\n')
 
-  const answer = await callOllamaChat([
+  const response = await callOllamaChat([
     { role: 'system', content: systemPrompt },
     ...safeHistory,
     { role: 'user', content: userPrompt },
-  ])
+  ], modelName)
 
   return {
-    answer,
+    answer: response.text,
     sources: chunks.slice(0, 3).map((chunk) => ({
       title: chunk.title,
       score: chunk.score,
     })),
+    promptTokens: response.promptTokens,
+    completionTokens: response.completionTokens,
+    totalTokens:
+      (response.promptTokens ?? 0) + (response.completionTokens ?? 0) || null,
+    modelName: response.model,
   }
 }

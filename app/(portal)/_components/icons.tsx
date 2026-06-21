@@ -51,6 +51,11 @@ export const Icons = {
       <path d="M10 18a8 8 0 1 1 5.3-14l4.7 4.7-1.4 1.4-3.9-3.9A6 6 0 1 0 10 16a5.9 5.9 0 0 0 3.5-1.1l1.2 1.6A7.9 7.9 0 0 1 10 18Z" />
     </SvgIcon>
   ),
+  chat: (props?: { className?: string; title?: string }) => (
+    <SvgIcon {...props}>
+      <path d="M5 5h14a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H9l-4 3v-3H5a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2Zm0 2v8h2v1.1L8.47 15H19V7H5Zm3 3h8v2H8v-2Z" />
+    </SvgIcon>
+  ),
   edit: (props?: { className?: string; title?: string }) => (
     <SvgIcon {...props}>
       <path d="M4 17.25V20h2.75L17.8 8.95l-2.75-2.75L4 17.25Zm15.7-9.2a1 1 0 0 0 0-1.4l-1.35-1.35a1 1 0 0 0-1.4 0l-1.05 1.05 2.75 2.75 1.05-1.05Z" />

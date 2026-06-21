@@ -1,3 +1,9 @@
+import { getServerSessionSafe } from '@/lib/auth'
+import { DEFAULT_CHAT_MODEL, isSupportedChatModel } from '@/src/lib/chat-models'
+import {
+  resolveOrCreateUserId,
+  saveChatExchange,
+} from '@/src/server/services/chat-session.service'
 import { generateRagAnswer } from '@/src/server/services/rag-chat.service'
 import type { NextRequest } from 'next/server'
 
@@ -50,9 +56,11 @@ export async function POST(req: NextRequest) {
     return badRequest('Invalid JSON body')
   }
 
-  const { message, history } = body as {
+  const { message, history, sessionId, modelName } = body as {
     message?: unknown
     history?: unknown
+    sessionId?: unknown
+    modelName?: unknown
   }
 
   if (!isNonEmptyString(message)) {
@@ -64,10 +72,37 @@ export async function POST(req: NextRequest) {
     return badRequest('history must be an array of { role, content }')
   }
 
+  const resolvedModelName = isSupportedChatModel(modelName) ? modelName : DEFAULT_CHAT_MODEL
+
   try {
-    const result = await generateRagAnswer(message, parsedHistory)
+    const session = await getServerSessionSafe()
+    if (!session?.user?.email?.trim()) {
+      return Response.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
+    const resolvedSessionId =
+      typeof sessionId === 'string' && sessionId.trim() ? sessionId.trim() : null
+    const userId = await resolveOrCreateUserId({
+      email: session.user.email,
+      name: session.user.name,
+    })
+    const startedAt = Date.now()
+    const result = await generateRagAnswer(message, parsedHistory, resolvedModelName)
+    const saved = await saveChatExchange({
+      userId,
+      sessionId: resolvedSessionId,
+      userMessage: message.trim(),
+      assistantMessage: result.answer,
+      modelName: resolvedModelName,
+      promptTokens: result.promptTokens,
+      completionTokens: result.completionTokens,
+      tokenCount: result.totalTokens,
+      responseTimeMs: Date.now() - startedAt,
+    })
 
     return Response.json({
+      sessionId: saved.sessionId,
+      modelName: resolvedModelName,
       answer: result.answer,
       sources: result.sources,
     })
