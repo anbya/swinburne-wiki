@@ -40,9 +40,9 @@ export default async function DocumentDetailPage({ params }: DocumentPageProps) 
   if (!row) {
     return (
       <div className="mx-auto w-full max-w-3xl">
-        <p className="text-sm text-zinc-600">Dokumen tidak ditemukan.</p>
+        <p className="text-sm text-zinc-600">Document not found.</p>
         <Link href="/documents/new" className="mt-4 inline-block text-sm text-red-700 hover:underline">
-          Kembali ke form dokumen baru
+          Back to the new document form
         </Link>
       </div>
     );
@@ -61,7 +61,7 @@ export default async function DocumentDetailPage({ params }: DocumentPageProps) 
     <div className="mx-auto w-full max-w-3xl">
       <div className="mb-6">
         <Link href="/documents/new" className="text-sm text-red-700 hover:underline">
-          ← Buat dokumen lain
+          {"<- Create another document"}
         </Link>
       </div>
 
@@ -78,7 +78,7 @@ export default async function DocumentDetailPage({ params }: DocumentPageProps) 
             <dd className="mt-1 text-sm text-zinc-900">{row.slug ?? "-"}</dd>
           </div>
           <div>
-            <dt className="text-xs uppercase tracking-wide text-zinc-500">Kategori</dt>
+            <dt className="text-xs uppercase tracking-wide text-zinc-500">Category</dt>
             <dd className="mt-1 text-sm text-zinc-900">{row.category ?? "-"}</dd>
           </div>
           <div>
@@ -86,7 +86,7 @@ export default async function DocumentDetailPage({ params }: DocumentPageProps) 
             <dd className="mt-1 text-sm text-zinc-900">{row.source_type ?? "-"}</dd>
           </div>
           <div>
-            <dt className="text-xs uppercase tracking-wide text-zinc-500">Jumlah Chunk</dt>
+            <dt className="text-xs uppercase tracking-wide text-zinc-500">Chunk Count</dt>
             <dd className="mt-1 text-sm text-zinc-900">{chunkCount}</dd>
           </div>
           <div>

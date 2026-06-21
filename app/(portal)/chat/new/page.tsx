@@ -1,5 +1,5 @@
-import { ChatWorkspace } from "../../_components/chat-workspace";
+import { redirect } from "next/navigation";
 
 export default function NewChatPage() {
-  return <ChatWorkspace mode="new" />;
+  redirect("/dashboard");
 }

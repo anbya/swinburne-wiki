@@ -1,5 +1,10 @@
 import { ChatWorkspace } from "../_components/chat-workspace";
 
-export default function DashboardPage() {
-  return <ChatWorkspace mode="dashboard" />;
+export default async function DashboardPage(
+  props: PageProps<"/dashboard">
+) {
+  const searchParams = await props.searchParams;
+  const sessionId = (searchParams.sessionId ?? "").trim();
+
+  return <ChatWorkspace mode={sessionId ? "dashboard" : "new"} />;
 }

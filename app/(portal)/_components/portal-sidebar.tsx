@@ -124,12 +124,12 @@ export function PortalSidebar() {
 
       <div className="px-3 pb-2">
         <Link
-          href="/chat/new"
+          href="/dashboard"
           title="New Chat Wiki"
           aria-label="New Chat Wiki"
           className={
             "flex w-full items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold text-white transition-colors " +
-            (pathname === "/chat/new" || (pathname === "/dashboard" && !activeSessionId)
+            (pathname === "/dashboard" && !activeSessionId
               ? "bg-red-800"
               : "bg-red-700 hover:bg-red-800")
           }

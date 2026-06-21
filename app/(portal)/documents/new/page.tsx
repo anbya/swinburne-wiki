@@ -10,11 +10,11 @@ type FormState = {
 };
 
 const CATEGORY_OPTIONS = [
-  "Akademik",
-  "Keuangan",
+  "Academic",
+  "Finance",
   "IT Support",
-  "Administrasi",
-  "Kemahasiswaan",
+  "Administration",
+  "Student Affairs",
 ];
 
 export default function NewDocumentPage() {
@@ -62,7 +62,7 @@ export default function NewDocumentPage() {
       const message =
         typeof json?.error === "string" && json.error.trim()
           ? json.error
-          : "Gagal membuat dokumen.";
+          : "Failed to create document.";
       setError(message);
       setSubmitting(false);
       return;
@@ -76,7 +76,7 @@ export default function NewDocumentPage() {
       typeof json?.documentId === "string" ? json.documentId : "";
 
     if (!documentId) {
-      setError("Dokumen berhasil dibuat, tapi documentId tidak ditemukan.");
+      setError("The document was created, but the documentId was not returned.");
       setSubmitting(false);
       return;
     }
@@ -88,11 +88,11 @@ export default function NewDocumentPage() {
     <div className="mx-auto w-full max-w-3xl">
       <div className="mb-8">
         <h1 className="text-3xl font-semibold tracking-tight text-zinc-900">
-          Dokumen Baru
+          New Document
         </h1>
         <p className="mt-2 text-sm text-zinc-600">
-          Buat dokumen baru, lalu sistem akan otomatis melakukan chunking dan
-          generate embedding.
+          Create a new document, and the system will automatically chunk it and
+          generate embeddings.
         </p>
       </div>
 
@@ -102,7 +102,7 @@ export default function NewDocumentPage() {
       >
         <div className="space-y-2">
           <label htmlFor="title" className="text-sm font-medium text-zinc-800">
-            Judul
+            Title
           </label>
           <input
             id="title"
@@ -110,7 +110,7 @@ export default function NewDocumentPage() {
             value={form.title}
             onChange={(e) => setForm((prev) => ({ ...prev, title: e.target.value }))}
             className="h-11 w-full rounded-lg border border-zinc-300 px-3 text-sm text-zinc-900 outline-none focus:border-red-400"
-            placeholder="Contoh: Panduan KRS"
+            placeholder="Example: Course Registration Guide"
             required
           />
         </div>
@@ -120,7 +120,7 @@ export default function NewDocumentPage() {
             htmlFor="category"
             className="text-sm font-medium text-zinc-800"
           >
-            Kategori
+            Category
           </label>
           <select
             id="category"
@@ -131,7 +131,7 @@ export default function NewDocumentPage() {
             className="h-11 w-full rounded-lg border border-zinc-300 bg-white px-3 text-sm text-zinc-900 outline-none focus:border-red-400"
             required
           >
-            <option value="">Pilih kategori</option>
+            <option value="">Select a category</option>
             {CATEGORY_OPTIONS.map((option) => (
               <option key={option} value={option}>
                 {option}
@@ -145,7 +145,7 @@ export default function NewDocumentPage() {
             htmlFor="content"
             className="text-sm font-medium text-zinc-800"
           >
-            Konten
+            Content
           </label>
           <textarea
             id="content"
@@ -154,7 +154,7 @@ export default function NewDocumentPage() {
               setForm((prev) => ({ ...prev, content: e.target.value }))
             }
             className="min-h-64 w-full rounded-lg border border-zinc-300 p-3 text-sm text-zinc-900 outline-none focus:border-red-400"
-            placeholder="Tulis isi dokumen di sini..."
+            placeholder="Write the document content here..."
             required
           />
         </div>
@@ -166,7 +166,7 @@ export default function NewDocumentPage() {
           disabled={disabled}
           className="inline-flex h-11 items-center justify-center rounded-lg bg-red-700 px-5 text-sm font-semibold text-white transition hover:bg-red-800 disabled:cursor-not-allowed disabled:bg-zinc-300"
         >
-          {submitting ? "Menyimpan..." : "Simpan Dokumen"}
+          {submitting ? "Saving..." : "Save Document"}
         </button>
       </form>
     </div>

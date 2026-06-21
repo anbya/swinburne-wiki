@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { CHAT_MODEL_OPTIONS, DEFAULT_CHAT_MODEL } from "@/src/lib/chat-models";
 
 type ChatWorkspaceMode = "new" | "dashboard";
@@ -69,7 +69,6 @@ function ChatWorkspaceInner({
   sessionId: string;
 }) {
   const router = useRouter();
-  const pathname = usePathname();
 
   const [input, setInput] = useState("");
   const [selectedModel, setSelectedModel] = useState(DEFAULT_CHAT_MODEL);
@@ -223,7 +222,7 @@ function ChatWorkspaceInner({
         },
       ]);
 
-      if (nextSessionId && (!sessionId || pathname === "/chat/new")) {
+      if (nextSessionId && (mode === "new" || !sessionId)) {
         router.replace(`/dashboard?sessionId=${encodeURIComponent(nextSessionId)}`);
         router.refresh();
       }
@@ -302,23 +301,25 @@ function ChatWorkspaceInner({
 
         <form onSubmit={onSend} className="border-t border-zinc-200 bg-white px-4 py-4">
           {mode === "new" ? (
-            <div className="mb-4 grid gap-2 sm:max-w-sm">
-              <label className="text-xs font-medium text-zinc-700">Model</label>
-              <select
-                className="h-11 rounded-xl border border-zinc-200 bg-white px-3 text-sm text-zinc-900 focus:border-zinc-300 focus:outline-none"
-                value={selectedModel}
-                onChange={(e) => setSelectedModel(e.target.value)}
-                disabled={sending || loadingSession}
-              >
-                {CHAT_MODEL_OPTIONS.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label} ({option.provider})
-                  </option>
-                ))}
-              </select>
-              <div className="text-[11px] text-zinc-500">
-                Default menggunakan {CHAT_MODEL_OPTIONS[0].label}. Model lain perlu tersedia di backend chat yang aktif.
+            <div className="mb-4 flex flex-col gap-1">
+              <div className="mb-4 grid gap-1.5 sm:max-w-[15rem]">
+                <label className="text-xs font-medium text-zinc-700">Model</label>
+                <select
+                  className="h-9 rounded-lg border border-zinc-200 bg-white px-2.5 text-xs text-zinc-900 focus:border-zinc-300 focus:outline-none"
+                  value={selectedModel}
+                  onChange={(e) => setSelectedModel(e.target.value)}
+                  disabled={sending || loadingSession}
+                >
+                  {CHAT_MODEL_OPTIONS.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label} ({option.provider})
+                    </option>
+                  ))}
+                </select>
               </div>
+                <div className="text-[10px] text-zinc-500">
+                  Defaults to {CHAT_MODEL_OPTIONS[0].label}. Other models must be available on the active chat backend.
+                </div>
             </div>
           ) : null}
 
