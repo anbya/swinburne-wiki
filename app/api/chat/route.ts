@@ -98,11 +98,12 @@ export async function POST(req: NextRequest) {
       completionTokens: result.completionTokens,
       tokenCount: result.totalTokens,
       responseTimeMs: Date.now() - startedAt,
+      sources: result.sources,
     })
 
     return Response.json({
       sessionId: saved.sessionId,
-      modelName: resolvedModelName,
+      modelName: result.modelName,
       answer: result.answer,
       sources: result.sources,
     })

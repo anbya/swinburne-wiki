@@ -1,14 +1,99 @@
 import { pool } from '@/lib/db'
+import type { ChatSource } from '@/src/server/services/rag-chat.service'
+
+const CHAT_MESSAGE_SCHEMA_VERSION = 3
+
+let chatMessageSchemaReady: { version: number; promise: Promise<void> } | null = null
 
 export type PersistedChatMessage = {
   id: string
   role: 'user' | 'assistant'
   content: string
   createdAt: string
+  modelName: string | null
   tokenCount: number | null
   promptTokens: number | null
   completionTokens: number | null
   responseTimeMs: number | null
+  sources: ChatSource[]
+}
+
+async function ensureChatMessageSchema() {
+  if (
+    !chatMessageSchemaReady ||
+    chatMessageSchemaReady.version !== CHAT_MESSAGE_SCHEMA_VERSION
+  ) {
+    chatMessageSchemaReady = {
+      version: CHAT_MESSAGE_SCHEMA_VERSION,
+      promise: (async () => {
+        await pool.query('ALTER TABLE chat_messages ADD COLUMN IF NOT EXISTS sources JSONB;')
+        await pool.query(
+          "ALTER TABLE chat_messages ADD COLUMN IF NOT EXISTS role VARCHAR(20);"
+        )
+        await pool.query(
+          'ALTER TABLE chat_messages ADD COLUMN IF NOT EXISTS model_name VARCHAR(255);'
+        )
+
+        await pool.query(`
+          WITH ranked_messages AS (
+            SELECT
+              id,
+              session_id,
+              sources,
+              token_count,
+              prompt_tokens,
+              completion_tokens,
+              response_time_ms,
+              ROW_NUMBER() OVER (
+                PARTITION BY session_id
+                ORDER BY created_at ASC, ctid ASC
+              ) AS message_rank
+            FROM chat_messages
+          )
+          UPDATE chat_messages cm
+          SET role = CASE
+            WHEN rm.sources IS NOT NULL
+              OR rm.token_count IS NOT NULL
+              OR rm.prompt_tokens IS NOT NULL
+              OR rm.completion_tokens IS NOT NULL
+              OR rm.response_time_ms IS NOT NULL
+            THEN 'assistant'
+            WHEN rm.message_rank % 2 = 1 THEN 'user'
+            ELSE 'assistant'
+          END
+          FROM ranked_messages rm
+          WHERE cm.id = rm.id
+            AND (cm.role IS NULL OR cm.role NOT IN ('user', 'assistant'));
+        `)
+      })(),
+    }
+  }
+
+  await chatMessageSchemaReady.promise
+}
+
+function parseSources(value: unknown): ChatSource[] {
+  if (!Array.isArray(value)) return []
+
+  return value
+    .map((item) => {
+      if (!item || typeof item !== 'object') return null
+
+      const row = item as {
+        title?: unknown
+        score?: unknown
+        sourceUrl?: unknown
+        sourceType?: unknown
+      }
+
+      return {
+        title: typeof row.title === 'string' && row.title.trim() ? row.title : 'Untitled',
+        score: typeof row.score === 'number' ? row.score : 0,
+        sourceUrl: typeof row.sourceUrl === 'string' ? row.sourceUrl : null,
+        sourceType: typeof row.sourceType === 'string' ? row.sourceType : null,
+      } satisfies ChatSource
+    })
+    .filter((item): item is ChatSource => item != null)
 }
 
 function normalizeDisplayName(name: string | null | undefined, email: string) {
@@ -93,6 +178,8 @@ export async function getChatMessagesBySessionId({
   sessionId: string
   userId: string
 }) {
+  await ensureChatMessageSchema()
+
   const sessionResult = await pool.query(
     `SELECT id::text
      FROM chat_sessions
@@ -110,7 +197,10 @@ export async function getChatMessagesBySessionId({
   const result = await pool.query(
     `SELECT
        id::text,
+       role,
        content,
+       model_name,
+       sources,
        token_count,
        prompt_tokens,
        completion_tokens,
@@ -118,19 +208,24 @@ export async function getChatMessagesBySessionId({
        created_at::text
      FROM chat_messages
      WHERE session_id = $1
-     ORDER BY created_at ASC, id ASC`,
+     ORDER BY
+       created_at ASC,
+       CASE role WHEN 'user' THEN 0 WHEN 'assistant' THEN 1 ELSE 2 END ASC,
+       id ASC`,
     [sessionId]
   )
 
-  return result.rows.map((row, index) => ({
+  return result.rows.map((row) => ({
     id: String(row.id),
-    role: index % 2 === 0 ? 'user' : 'assistant',
+    role: row.role === 'assistant' ? 'assistant' : 'user',
     content: String(row.content ?? ''),
     createdAt: String(row.created_at ?? ''),
+    modelName: typeof row.model_name === 'string' ? row.model_name : null,
     tokenCount: typeof row.token_count === 'number' ? row.token_count : null,
     promptTokens: typeof row.prompt_tokens === 'number' ? row.prompt_tokens : null,
     completionTokens: typeof row.completion_tokens === 'number' ? row.completion_tokens : null,
     responseTimeMs: typeof row.response_time_ms === 'number' ? row.response_time_ms : null,
+    sources: parseSources(row.sources),
   })) as PersistedChatMessage[]
 }
 
@@ -144,6 +239,7 @@ export async function saveChatExchange({
   completionTokens,
   tokenCount,
   responseTimeMs,
+  sources,
 }: {
   userId: string
   sessionId?: string | null
@@ -154,7 +250,10 @@ export async function saveChatExchange({
   completionTokens?: number | null
   tokenCount?: number | null
   responseTimeMs?: number | null
+  sources?: ChatSource[]
 }) {
+  await ensureChatMessageSchema()
+
   const client = await pool.connect()
 
   try {
@@ -192,24 +291,30 @@ export async function saveChatExchange({
     }
 
     await client.query(
-      `INSERT INTO chat_messages (session_id, content)
-       VALUES ($1, $2)`,
-      [resolvedSessionId, userMessage]
+      `INSERT INTO chat_messages (session_id, role, content)
+       VALUES ($1, $2, $3)`,
+      [resolvedSessionId, 'user', userMessage]
     )
 
     await client.query(
       `INSERT INTO chat_messages (
          session_id,
+         role,
          content,
+         model_name,
+         sources,
          token_count,
          prompt_tokens,
          completion_tokens,
          response_time_ms
        )
-       VALUES ($1, $2, $3, $4, $5, $6)`,
+       VALUES ($1, $2, $3, $4, $5::jsonb, $6, $7, $8, $9)`,
       [
         resolvedSessionId,
+        'assistant',
         assistantMessage,
+        modelName,
+        JSON.stringify(sources ?? []),
         tokenCount ?? null,
         promptTokens ?? null,
         completionTokens ?? null,

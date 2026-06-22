@@ -17,3 +17,23 @@ export function isSupportedChatModel(value: unknown): value is string {
     CHAT_MODEL_OPTIONS.some((option) => option.value === value)
   )
 }
+
+export function getChatModelOption(value: string | null | undefined) {
+  if (!value) return null
+  return CHAT_MODEL_OPTIONS.find((option) => option.value === value) ?? null
+}
+
+export function getChatModelDisplayName(value: string | null | undefined) {
+  const option = getChatModelOption(value)
+  if (option) return option.label
+
+  const normalized = value?.trim() ?? ''
+  return normalized || 'Unknown model'
+}
+
+export function getChatModelProviderName(value: string | null | undefined) {
+  const option = getChatModelOption(value)
+  if (option) return option.provider
+
+  return null
+}

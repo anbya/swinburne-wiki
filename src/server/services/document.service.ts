@@ -15,7 +15,7 @@ type WikiPageDocumentSource = {
   category: string
 }
 
-const DOCUMENT_SCHEMA_VERSION = 2
+const DOCUMENT_SCHEMA_VERSION = 3
 
 let schemaReady: { version: number; promise: Promise<void> } | null = null
 
@@ -62,11 +62,28 @@ async function ensureDocumentSchema() {
           );
         `)
 
-        await pool.query(`
-          ALTER TABLE document_chunks
-          ALTER COLUMN embedding TYPE VECTOR(${VECTOR_SIZE})
-          USING NULL::vector(${VECTOR_SIZE});
-        `)
+        const embeddingColumnResult = await pool.query<{
+          embedding_type: string | null
+        }>(
+          `SELECT format_type(a.atttypid, a.atttypmod) AS embedding_type
+           FROM pg_attribute a
+           INNER JOIN pg_class c ON c.oid = a.attrelid
+           INNER JOIN pg_namespace n ON n.oid = c.relnamespace
+           WHERE n.nspname = 'public'
+             AND c.relname = 'document_chunks'
+             AND a.attname = 'embedding'
+             AND NOT a.attisdropped
+           LIMIT 1`
+        )
+
+        const embeddingType = embeddingColumnResult.rows[0]?.embedding_type ?? null
+        if (embeddingType !== `vector(${VECTOR_SIZE})`) {
+          await pool.query(`
+            ALTER TABLE document_chunks
+            ALTER COLUMN embedding TYPE VECTOR(${VECTOR_SIZE})
+            USING embedding::vector(${VECTOR_SIZE});
+          `)
+        }
 
         if (VECTOR_SIZE > 2000) {
           const ivfflatIndexes = await pool.query(
@@ -91,6 +108,26 @@ async function ensureDocumentSchema() {
         await pool.query(
           'CREATE INDEX IF NOT EXISTS idx_document_chunks_document_id ON document_chunks(document_id);'
         )
+
+        const missingEmbeddingRows = await pool.query<{
+          id: string
+          content: string
+        }>(
+          `SELECT id::text, content
+           FROM document_chunks
+           WHERE embedding IS NULL
+           ORDER BY created_at ASC, chunk_index ASC`
+        )
+
+        for (const row of missingEmbeddingRows.rows) {
+          const embedding = await generateEmbedding(row.content)
+          await pool.query(
+            `UPDATE document_chunks
+             SET embedding = $2::vector
+             WHERE id = $1::uuid`,
+            [row.id, toVectorLiteral(embedding)]
+          )
+        }
       })(),
     }
   }
