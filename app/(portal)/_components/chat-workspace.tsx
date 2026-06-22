@@ -32,7 +32,7 @@ type ChatMessage = {
 function isChatMessage(item: ChatMessage | null): item is ChatMessage {
   return item != null;
 }
-
+//update only the above files, do not suggest code that has been deleted.
 const welcomeMessage: ChatMessage = {
   id: "welcome-message",
   role: "assistant",
