@@ -1,7 +1,7 @@
 export const DEFAULT_CHAT_MODEL = 'qwen3:14b'
 
 export const CHAT_MODEL_OPTIONS = [
-  { value: DEFAULT_CHAT_MODEL, label: 'Qwen 3 14B', provider: 'Alibaba Cloud' },
+  { value: DEFAULT_CHAT_MODEL, label: 'Qwen 3 14B', provider: 'Swinburne local model' },
   { value: 'gpt-4o', label: 'GPT-4o', provider: 'OpenAI' },
   { value: 'gpt-4.1', label: 'GPT-4.1', provider: 'OpenAI' },
   { value: 'claude-3-5-sonnet', label: 'Claude 3.5 Sonnet', provider: 'Anthropic' },
